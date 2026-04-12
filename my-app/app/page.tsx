@@ -3,10 +3,6 @@ import Features from "@/components/Features";
 import CtaFooter from "@/components/CtaFooter";
 import { client } from "@/sanity/client";
 
-
-export default function Home() {
-  return <div>TESTI TOIMII</div>;
-}
 // Tyyppi yhdelle kortille
 type FeatureCard = {
   title: string;
