@@ -29,6 +29,14 @@ export default function Navbar() {
         </li>
         <li>
           <a
+            href="/koti"
+            className="text-gray-300 hover:text-white transition-colors text-sm"
+          >
+            Koti
+          </a>
+        </li>
+        <li>
+          <a
             href="/yhteys"
             className="text-gray-300 hover:text-white transition-colors text-sm"
           >
