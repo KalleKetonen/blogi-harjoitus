@@ -86,7 +86,7 @@ async function fetchNearestStation(
   const apiKey = process.env.DIGITRANSIT_API_KEY;
 
   const res = await fetch(
-    "https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql",
+    "https://api.digitransit.fi/routing/v2/hsl/gtfs/v1",
     {
       method: "POST",
       headers: {
