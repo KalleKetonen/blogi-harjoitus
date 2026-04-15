@@ -1,9 +1,11 @@
 import { getCurrentWeather, getWeatherAt16 } from "@/lib/weather";
 import { getNearestBikeStation } from "@/lib/bikes";
 import { getMaariDepartures } from "@/lib/tram";
+import { getKalevalantienDepartures } from "@/lib/bus";
 import type { WeatherData } from "@/lib/weather";
 import type { BikeStation } from "@/lib/bikes";
 import type { TramData, TramStop } from "@/lib/tram";
+import type { BusData } from "@/lib/bus";
 
 // ---- Datan haku ------------------------------------------------------------
 
@@ -37,6 +39,15 @@ async function fetchTramData() {
   }
 }
 
+async function fetchBusData() {
+  try {
+    const data = await getKalevalantienDepartures();
+    return { data, error: null };
+  } catch {
+    return { data: null, error: "Bussipysäkkidata ei saatavilla." };
+  }
+}
+
 // ---- Alikomponentit --------------------------------------------------------
 
 function WeatherCard({
@@ -64,20 +75,15 @@ function WeatherCard({
 
       {!error && data && (
         <>
-          {/* Emoji ja lämpötila */}
           <div className="flex items-end gap-2 sm:gap-3">
             <span className="text-3xl sm:text-5xl">{data.emoji}</span>
             <span className="text-4xl sm:text-5xl font-bold text-white leading-none">
               {data.temperature}°
             </span>
           </div>
-
-          {/* Kuvaus */}
           <p className="text-gray-300 text-base sm:text-lg leading-tight">
             {data.description}
           </p>
-
-          {/* Tuntuu kuin */}
           <p className="text-gray-500 text-xs sm:text-sm">
             Tuntuu kuin {data.feelsLike}°C
           </p>
@@ -108,7 +114,6 @@ function BikeCard({
 
       {!error && station && (
         <>
-          {/* Emoji ja aseman nimi */}
           <div className="flex items-start gap-2 sm:gap-3">
             <span className="text-3xl sm:text-5xl">🚲</span>
             <div className="min-w-0">
@@ -121,10 +126,9 @@ function BikeCard({
             </div>
           </div>
 
-          {/* Pyörät ja telakat */}
           <div className="flex gap-4 mt-1">
             <div className="flex flex-col">
-              <span className={`text-2xl sm:text-2xl font-bold ${
+              <span className={`text-2xl font-bold ${
                 station.bikesAvailable === 0 ? "text-red-400" : "text-white"
               }`}>
                 {station.bikesAvailable}
@@ -133,11 +137,9 @@ function BikeCard({
                 {station.bikesAvailable === 0 ? "Ei pyöriä" : "Pyörää"}
               </span>
             </div>
-
             <div className="w-px bg-gray-800" />
-
             <div className="flex flex-col">
-              <span className={`text-2xl sm:text-2xl font-bold ${
+              <span className={`text-2xl font-bold ${
                 station.spacesAvailable === 0 ? "text-red-400" : "text-white"
               }`}>
                 {station.spacesAvailable}
@@ -153,8 +155,8 @@ function BikeCard({
   );
 }
 
-// Yhden pysäkin lähdöt TramCard-kortin sisällä
-function TramStopSection({ stop }: { stop: TramStop }) {
+// Yhden pysäkin lähdöt joukkoliikennekortissa — käytetään sekä ratikka- että bussikortissa
+function StopSection({ stop }: { stop: TramStop }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest">
@@ -174,28 +176,19 @@ function TramStopSection({ stop }: { stop: TramStop }) {
             : "text-white";
 
         return (
-          <div key={i} className="flex items-center gap-2">
-            {/* Linjanumero */}
+          <div key={i} className="flex items-center gap-2 min-w-0">
             <span className="bg-indigo-700 text-white text-xs font-bold rounded px-1.5 py-0.5 shrink-0">
               {dep.line}
             </span>
-
-            {/* Aika */}
             <span className="text-white text-sm font-semibold tabular-nums shrink-0">
               {dep.time}
             </span>
-
-            {/* Minuutteja */}
             <span className={`text-xs font-medium tabular-nums shrink-0 ${minColor}`}>
               {dep.minutesUntil <= 0 ? "nyt" : `${dep.minutesUntil} min`}
             </span>
-
-            {/* Reaaliaikainen-ilmaisin */}
             {dep.isRealtime && (
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" title="Reaaliaikainen" />
             )}
-
-            {/* Määränpää */}
             <span className="text-gray-400 text-xs truncate">
               {dep.headsign}
             </span>
@@ -206,25 +199,34 @@ function TramStopSection({ stop }: { stop: TramStop }) {
   );
 }
 
-function TramCard({
-  data,
-  error,
-}: {
-  data: TramData | null;
-  error: string | null;
-}) {
+function TramCard({ data, error }: { data: TramData | null; error: string | null }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 flex flex-col gap-3 sm:gap-4 col-span-2 lg:col-span-2">
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 flex flex-col gap-3 sm:gap-4">
       <h2 className="text-gray-400 text-xs sm:text-sm font-semibold uppercase tracking-widest">
         🚋 Raide-Jokeri · Maari
       </h2>
-
       {error && <p className="text-red-400 text-xs sm:text-sm">{error}</p>}
-
       {!error && data && (
         <div className="grid grid-cols-2 gap-4">
-          <TramStopSection stop={data.e0771} />
-          <TramStopSection stop={data.e0770} />
+          <StopSection stop={data.e0771} />
+          <StopSection stop={data.e0770} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BusCard({ data, error }: { data: BusData | null; error: string | null }) {
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 flex flex-col gap-3 sm:gap-4">
+      <h2 className="text-gray-400 text-xs sm:text-sm font-semibold uppercase tracking-widest">
+        🚌 Bussi 111 · Kalevalantie
+      </h2>
+      {error && <p className="text-red-400 text-xs sm:text-sm">{error}</p>}
+      {!error && data && (
+        <div className="grid grid-cols-2 gap-4">
+          <StopSection stop={data.e2072} />
+          <StopSection stop={data.e2079} />
         </div>
       )}
     </div>
@@ -234,10 +236,11 @@ function TramCard({
 // ---- Pääsivu ---------------------------------------------------------------
 
 export default async function KotiPage() {
-  const [weather, bikes, tram] = await Promise.all([
+  const [weather, bikes, tram, bus] = await Promise.all([
     fetchWeatherData(),
     fetchBikeData(),
     fetchTramData(),
+    fetchBusData(),
   ]);
 
   const updatedAt = new Date().toLocaleTimeString("fi-FI", {
@@ -247,11 +250,10 @@ export default async function KotiPage() {
   });
 
   return (
-    // py-6 mobiililla, enemmän tilaa isommilla näytöillä
     <main className="min-h-screen bg-gray-950 px-4 sm:px-6 py-6 sm:py-12 lg:py-20">
       <div className="max-w-5xl mx-auto">
 
-        {/* Otsikko — tiiviimpi mobiililla */}
+        {/* Otsikko */}
         <div className="mb-6 sm:mb-10 lg:mb-12">
           <p className="text-indigo-400 text-xs sm:text-sm font-semibold uppercase tracking-widest mb-2 sm:mb-3">
             02130 · Tapiola, Espoo
@@ -260,15 +262,12 @@ export default async function KotiPage() {
             Kodin infosivu
           </h1>
           <p className="text-gray-500 text-xs sm:text-sm mt-2 sm:mt-3">
-            Päivitetty noin klo {updatedAt} — sää 30 min, pyörät 1 min, ratikka 30 s
+            Päivitetty noin klo {updatedAt} — sää 30 min, pyörät 1 min, liikenne 30 s
           </p>
         </div>
 
-        {/* Korttiruudukko
-            - Puhelin ja tabletti portrait: 2 korttia rinnakkain
-            - Desktop: 4 korttia rinnakkain
-            - TramCard on aina 2 saraketta leveä                    */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 lg:gap-6">
+        {/* Sää ja pyörät — 2 saraketta mobiililla, 3 tabletilla+ */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-5 lg:gap-6 mb-3 sm:mb-5 lg:mb-6">
           <WeatherCard
             title="Sää nyt"
             data={weather.current}
@@ -280,14 +279,16 @@ export default async function KotiPage() {
             error={weather.error}
             fallback="Ei saatavilla."
           />
-          <BikeCard
-            station={bikes.station}
-            error={bikes.error}
-          />
-          <TramCard
-            data={tram.data}
-            error={tram.error}
-          />
+          {/* Pyörät: koko leveys mobiililla (col-span-2), normaali tabletilla+ */}
+          <div className="col-span-2 sm:col-span-1">
+            <BikeCard station={bikes.station} error={bikes.error} />
+          </div>
+        </div>
+
+        {/* Joukkoliikenne — rinnakkain tabletilla+, päällekkäin mobiililla */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5 lg:gap-6">
+          <TramCard data={tram.data} error={tram.error} />
+          <BusCard data={bus.data} error={bus.error} />
         </div>
 
       </div>
