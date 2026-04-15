@@ -1,3 +1,4 @@
+import AutoRefresh from "@/components/AutoRefresh";
 import { getCurrentWeather, getWeatherAt16 } from "@/lib/weather";
 import { getNearestBikeStation, getMaarinrantaStation } from "@/lib/bikes";
 import { getMaariDepartures } from "@/lib/tram";
@@ -269,6 +270,7 @@ export default async function KotiPage() {
 
   return (
     <main className="min-h-screen bg-gray-950 px-4 sm:px-6 py-6 sm:py-12 lg:py-20">
+      <AutoRefresh />
       <div className="max-w-5xl mx-auto">
 
         {/* Otsikko */}
