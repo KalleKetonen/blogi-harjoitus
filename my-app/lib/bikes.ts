@@ -6,7 +6,7 @@
 
 export type BikeStation = {
   name: string;
-  distanceMeters: number;
+  distanceMeters?: number;   // puuttuu suoraan ID:llä haetuista asemista
   bikesAvailable: number;
   spacesAvailable: number;
 };
@@ -119,4 +119,52 @@ async function fetchNearestStation(
 export async function getNearestBikeStation(): Promise<BikeStation | null> {
   const { lat, lon } = await geocodeAddress("Metsänpojankuja 7, Espoo, Finland");
   return fetchNearestStation(lat, lon);
+}
+
+// Maarinrannan asema haetaan suoraan ID:llä — tarkistettu: stationId "549"
+// Löytyi APIsta: bikeRentalStations { stationId name } → "Maarinranta"
+// Sijaitsee 81 m päässä Raide-Jokerin Maarin pysäkistä (HSL:2222403)
+type BikeRentalStationResponse = {
+  data: {
+    bikeRentalStation: {
+      name: string;
+      bikesAvailable: number;
+      spacesAvailable: number;
+    } | null;
+  };
+};
+
+export async function getMaarinrantaStation(): Promise<BikeStation | null> {
+  const apiKey = process.env.DIGITRANSIT_API_KEY;
+
+  const query = `{
+    bikeRentalStation(id: "549") {
+      name
+      bikesAvailable
+      spacesAvailable
+    }
+  }`;
+
+  const res = await fetch("https://api.digitransit.fi/routing/v2/hsl/gtfs/v1", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(apiKey ? { "digitransit-subscription-key": apiKey } : {}),
+    },
+    body: JSON.stringify({ query }),
+    next: { revalidate: 60 },
+  });
+
+  if (!res.ok) throw new Error(`Digitransit API epäonnistui: ${res.status}`);
+
+  const json: BikeRentalStationResponse = await res.json();
+  const station = json.data?.bikeRentalStation;
+
+  if (!station) return null;
+
+  return {
+    name:            station.name,
+    bikesAvailable:  station.bikesAvailable,
+    spacesAvailable: station.spacesAvailable,
+  };
 }

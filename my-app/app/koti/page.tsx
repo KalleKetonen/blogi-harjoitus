@@ -1,5 +1,5 @@
 import { getCurrentWeather, getWeatherAt16 } from "@/lib/weather";
-import { getNearestBikeStation } from "@/lib/bikes";
+import { getNearestBikeStation, getMaarinrantaStation } from "@/lib/bikes";
 import { getMaariDepartures } from "@/lib/tram";
 import { getKalevalantienDepartures } from "@/lib/bus";
 import type { WeatherData } from "@/lib/weather";
@@ -23,10 +23,13 @@ async function fetchWeatherData() {
 
 async function fetchBikeData() {
   try {
-    const station = await getNearestBikeStation();
-    return { station, error: null };
+    const [home, maari] = await Promise.all([
+      getNearestBikeStation(),
+      getMaarinrantaStation(),
+    ]);
+    return { home, maari, error: null };
   } catch {
-    return { station: null, error: "Pyörädata ei saatavilla." };
+    return { home: null, maari: null, error: "Pyörädata ei saatavilla." };
   }
 }
 
@@ -93,63 +96,69 @@ function WeatherCard({
   );
 }
 
+function bikeStatus(bikes: number): { text: string; color: string } {
+  if (bikes === 0) return { text: "Ei pyöriä", color: "text-red-400" };
+  if (bikes <= 3)  return { text: "Vähän jäljellä", color: "text-yellow-400" };
+  return { text: "Hyvin saatavilla", color: "text-green-400" };
+}
+
+function BikeStationRow({ station, showDistance }: { station: BikeStation; showDistance?: boolean }) {
+  const status = bikeStatus(station.bikesAvailable);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-white font-semibold text-sm truncate">{station.name}</p>
+        {showDistance && station.distanceMeters && (
+          <span className="text-gray-500 text-xs shrink-0">{station.distanceMeters} m</span>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        <span className={`text-2xl font-bold ${station.bikesAvailable === 0 ? "text-red-400" : "text-white"}`}>
+          {station.bikesAvailable}
+        </span>
+        <span className="text-gray-500 text-xs">pyörää</span>
+        <div className="w-px h-4 bg-gray-700" />
+        <span className={`text-2xl font-bold ${station.spacesAvailable === 0 ? "text-red-400" : "text-white"}`}>
+          {station.spacesAvailable}
+        </span>
+        <span className="text-gray-500 text-xs">paikkaa</span>
+      </div>
+      <p className={`text-xs font-medium ${status.color}`}>{status.text}</p>
+    </div>
+  );
+}
+
 function BikeCard({
-  station,
+  home,
+  maari,
   error,
 }: {
-  station: BikeStation | null;
+  home: BikeStation | null;
+  maari: BikeStation | null;
   error: string | null;
 }) {
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 flex flex-col gap-3 sm:gap-4">
       <h2 className="text-gray-400 text-xs sm:text-sm font-semibold uppercase tracking-widest">
-        Kaupunkipyörät
+        🚲 Kaupunkipyörät
       </h2>
 
       {error && <p className="text-red-400 text-xs sm:text-sm">{error}</p>}
 
-      {!error && !station && (
-        <p className="text-gray-500 text-xs sm:text-sm">Lähiasemaa ei löydy.</p>
-      )}
+      {!error && (
+        <div className="flex flex-col gap-3">
+          {home
+            ? <BikeStationRow station={home} showDistance />
+            : <p className="text-gray-500 text-xs">Lähiasemaa ei löydy.</p>
+          }
 
-      {!error && station && (
-        <>
-          <div className="flex items-start gap-2 sm:gap-3">
-            <span className="text-3xl sm:text-5xl">🚲</span>
-            <div className="min-w-0">
-              <p className="text-white font-semibold leading-tight text-sm sm:text-base truncate">
-                {station.name}
-              </p>
-              <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
-                {station.distanceMeters} m
-              </p>
-            </div>
-          </div>
+          <div className="h-px bg-gray-800" />
 
-          <div className="flex gap-4 mt-1">
-            <div className="flex flex-col">
-              <span className={`text-2xl font-bold ${
-                station.bikesAvailable === 0 ? "text-red-400" : "text-white"
-              }`}>
-                {station.bikesAvailable}
-              </span>
-              <span className="text-gray-500 text-xs mt-0.5">
-                {station.bikesAvailable === 0 ? "Ei pyöriä" : "Pyörää"}
-              </span>
-            </div>
-            <div className="w-px bg-gray-800" />
-            <div className="flex flex-col">
-              <span className={`text-2xl font-bold ${
-                station.spacesAvailable === 0 ? "text-red-400" : "text-white"
-              }`}>
-                {station.spacesAvailable}
-              </span>
-              <span className="text-gray-500 text-xs mt-0.5">
-                {station.spacesAvailable === 0 ? "Ei tilaa" : "Telakoita"}
-              </span>
-            </div>
-          </div>
-        </>
+          {maari
+            ? <BikeStationRow station={maari} />
+            : <p className="text-gray-500 text-xs">Maarinrannan data ei saatavilla.</p>
+          }
+        </div>
       )}
     </div>
   );
@@ -281,7 +290,7 @@ export default async function KotiPage() {
           />
           {/* Pyörät: koko leveys mobiililla (col-span-2), normaali tabletilla+ */}
           <div className="col-span-2 sm:col-span-1">
-            <BikeCard station={bikes.station} error={bikes.error} />
+            <BikeCard home={bikes.home} maari={bikes.maari} error={bikes.error} />
           </div>
         </div>
 
