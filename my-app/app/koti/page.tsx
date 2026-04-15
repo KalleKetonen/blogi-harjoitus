@@ -1,7 +1,9 @@
 import { getCurrentWeather, getWeatherAt16 } from "@/lib/weather";
 import { getNearestBikeStation } from "@/lib/bikes";
+import { getMaariDepartures } from "@/lib/tram";
 import type { WeatherData } from "@/lib/weather";
 import type { BikeStation } from "@/lib/bikes";
+import type { TramData, TramStop } from "@/lib/tram";
 
 // ---- Datan haku ------------------------------------------------------------
 
@@ -23,6 +25,15 @@ async function fetchBikeData() {
     return { station, error: null };
   } catch {
     return { station: null, error: "Pyörädata ei saatavilla." };
+  }
+}
+
+async function fetchTramData() {
+  try {
+    const data = await getMaariDepartures();
+    return { data, error: null };
+  } catch {
+    return { data: null, error: "Ratikkadata ei saatavilla." };
   }
 }
 
@@ -142,23 +153,80 @@ function BikeCard({
   );
 }
 
-function TransitCard() {
+// Yhden pysäkin lähdöt TramCard-kortin sisällä
+function TramStopSection({ stop }: { stop: TramStop }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 flex flex-col gap-3 sm:gap-4">
+    <div className="flex flex-col gap-2">
+      <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest">
+        {stop.code}
+      </p>
+
+      {stop.departures.length === 0 && (
+        <p className="text-gray-600 text-xs">Ei tulevia lähtöjä</p>
+      )}
+
+      {stop.departures.map((dep, i) => {
+        const minColor =
+          dep.minutesUntil <= 1
+            ? "text-red-400"
+            : dep.minutesUntil <= 4
+            ? "text-yellow-400"
+            : "text-white";
+
+        return (
+          <div key={i} className="flex items-center gap-2">
+            {/* Linjanumero */}
+            <span className="bg-indigo-700 text-white text-xs font-bold rounded px-1.5 py-0.5 shrink-0">
+              {dep.line}
+            </span>
+
+            {/* Aika */}
+            <span className="text-white text-sm font-semibold tabular-nums shrink-0">
+              {dep.time}
+            </span>
+
+            {/* Minuutteja */}
+            <span className={`text-xs font-medium tabular-nums shrink-0 ${minColor}`}>
+              {dep.minutesUntil <= 0 ? "nyt" : `${dep.minutesUntil} min`}
+            </span>
+
+            {/* Reaaliaikainen-ilmaisin */}
+            {dep.isRealtime && (
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" title="Reaaliaikainen" />
+            )}
+
+            {/* Määränpää */}
+            <span className="text-gray-400 text-xs truncate">
+              {dep.headsign}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TramCard({
+  data,
+  error,
+}: {
+  data: TramData | null;
+  error: string | null;
+}) {
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 flex flex-col gap-3 sm:gap-4 col-span-2 lg:col-span-2">
       <h2 className="text-gray-400 text-xs sm:text-sm font-semibold uppercase tracking-widest">
-        Bussit &amp; ratikat
+        🚋 Raide-Jokeri · Maari
       </h2>
-      <div className="flex items-center gap-2 sm:gap-3">
-        <span className="text-3xl sm:text-5xl">🚌</span>
-        <div>
-          <p className="text-white font-medium text-sm sm:text-base">
-            Tulossa pian
-          </p>
-          <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
-            HSL-aikataulut lisätään myöhemmin
-          </p>
+
+      {error && <p className="text-red-400 text-xs sm:text-sm">{error}</p>}
+
+      {!error && data && (
+        <div className="grid grid-cols-2 gap-4">
+          <TramStopSection stop={data.e0771} />
+          <TramStopSection stop={data.e0770} />
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -166,9 +234,10 @@ function TransitCard() {
 // ---- Pääsivu ---------------------------------------------------------------
 
 export default async function KotiPage() {
-  const [weather, bikes] = await Promise.all([
+  const [weather, bikes, tram] = await Promise.all([
     fetchWeatherData(),
     fetchBikeData(),
+    fetchTramData(),
   ]);
 
   const updatedAt = new Date().toLocaleTimeString("fi-FI", {
@@ -191,13 +260,14 @@ export default async function KotiPage() {
             Kodin infosivu
           </h1>
           <p className="text-gray-500 text-xs sm:text-sm mt-2 sm:mt-3">
-            Päivitetty noin klo {updatedAt} — sää 30 min, pyörät 1 min
+            Päivitetty noin klo {updatedAt} — sää 30 min, pyörät 1 min, ratikka 30 s
           </p>
         </div>
 
         {/* Korttiruudukko
             - Puhelin ja tabletti portrait: 2 korttia rinnakkain
-            - Desktop: 4 korttia rinnakkain                        */}
+            - Desktop: 4 korttia rinnakkain
+            - TramCard on aina 2 saraketta leveä                    */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 lg:gap-6">
           <WeatherCard
             title="Sää nyt"
@@ -214,7 +284,10 @@ export default async function KotiPage() {
             station={bikes.station}
             error={bikes.error}
           />
-          <TransitCard />
+          <TramCard
+            data={tram.data}
+            error={tram.error}
+          />
         </div>
 
       </div>
