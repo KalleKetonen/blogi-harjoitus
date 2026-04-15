@@ -164,12 +164,21 @@ function BikeCard({
   );
 }
 
+// Suuntaotsikot pysäkkikoodeittain — muokkaa tästä
+const DIRECTION_LABELS: Record<string, string> = {
+  E0771: "Leppävaaraan",   // Raide-Jokeri, HSL:2222403
+  E0770: "Keilaniemeen",   // Raide-Jokeri, HSL:2222404
+  E2072: "Otaniemeen",     // Bussi 111,    HSL:2215274
+  E2079: "Tapiolaan",      // Bussi 111,    HSL:2215299
+};
+
 // Yhden pysäkin lähdöt joukkoliikennekortissa — käytetään sekä ratikka- että bussikortissa
 function StopSection({ stop }: { stop: TramStop }) {
+  const label = DIRECTION_LABELS[stop.code] ?? stop.code;
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest">
-        {stop.code}
+      <p className="text-gray-400 text-xs font-semibold">
+        {label}
       </p>
 
       {stop.departures.length === 0 && (
