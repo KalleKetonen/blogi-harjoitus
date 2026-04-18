@@ -3,59 +3,81 @@
 import { useState, useEffect, useRef } from "react";
 import PortraitPlaceholder from "./PortraitPlaceholder";
 
-// ─── Data ────────────────────────────────────────────────────────────────────
+// ─── Sijoittelutyyppi ────────────────────────────────────────────────────────
+//
+// Kortilla on 6 mahdollista paikkaa näytöllä.
+// Muokkaa SECTIONS-arrayta vaihtaaksesi minkä tahansa osion paikkaa.
 
-// Jokaisella osiolla on otsikko, puoli ja oma taustagradietti.
-// Sisältö on SectionContent-funktiossa alempana — helppo muokata.
+type CardPosition =
+  | "top-left"
+  | "top-right"
+  | "center-left"
+  | "center-right"
+  | "bottom-left"
+  | "bottom-right";
+
+// Jokainen paikka muuntuu absolute-sijainniksi section-divissä.
+// Kortti on aina fyysisesti tässä kohdassa — ei liu'u reunoilta.
+const CARD_POSITION: Record<CardPosition, string> = {
+  "top-left":     "top-24 left-6 lg:left-14",
+  "top-right":    "top-24 right-6 lg:right-14",
+  "center-left":  "top-1/2 -translate-y-1/2 left-6 lg:left-14",
+  "center-right": "top-1/2 -translate-y-1/2 right-6 lg:right-14",
+  "bottom-left":  "bottom-24 left-6 lg:left-14",
+  "bottom-right": "bottom-24 right-6 lg:right-14",
+};
+
+// ─── Osiodata ────────────────────────────────────────────────────────────────
 
 type Section = {
   id: string;
   label: string;
   title: string;
-  side: "left" | "right";
-  gradient: string; // Tailwind-luokat sticky-taustan värikerrokselle
+  position: CardPosition;
+  gradient: string;
 };
 
+// Sijoittelu on valittu niin, että kortit liikkuvat näytöllä eri kohtiin —
+// ei pelkkää vasemmalta-oikealta vaihtoa, vaan lavastettu kokonaisuus.
 const SECTIONS: Section[] = [
   {
     id: "intro",
     label: "01 / Esittely",
     title: "Etunimi Sukunimi",
-    side: "left",
+    position: "center-left",      // Intro: keskellä vasemmalla — pääroolissa
     gradient: "from-indigo-950 via-gray-900 to-gray-950",
   },
   {
     id: "contact",
     label: "02 / Yhteystiedot",
     title: "Ota yhteyttä",
-    side: "right",
+    position: "top-right",        // Yhteystiedot: yläoikealla — kevyt ja siisti
     gradient: "from-slate-950 via-gray-900 to-indigo-950",
   },
   {
     id: "education",
     label: "03 / Koulutus & Työ",
     title: "Tausta",
-    side: "left",
+    position: "bottom-left",      // Tausta: alavasemmalla — ankkuroitu
     gradient: "from-gray-950 via-indigo-950 to-gray-900",
   },
   {
     id: "skills",
     label: "04 / Osaaminen",
     title: "Mitä osaan",
-    side: "right",
+    position: "top-left",         // Osaaminen: ylävasemmalla — tiivis ja tekninen
     gradient: "from-violet-950 via-gray-950 to-gray-900",
   },
   {
     id: "projects",
     label: "05 / Projektit",
     title: "Rakennettua",
-    side: "left",
+    position: "center-right",     // Projektit: keskellä oikealla — loppuhuipennus
     gradient: "from-gray-950 via-slate-950 to-indigo-950",
   },
 ];
 
 // ─── Osiokohtainen sisältö ────────────────────────────────────────────────────
-// Muokkaa tämä placeholder-sisältöä myöhemmin oikeaksi
 
 function SectionContent({ id }: { id: string }) {
   switch (id) {
@@ -194,23 +216,11 @@ function SectionContent({ id }: { id: string }) {
 
 // ─── Pääkomponentti ───────────────────────────────────────────────────────────
 //
-// Layout-idea:
-//   CSS Grid, molemmat lapset samassa grid-alueessa (1 / 1):
-//
-//     [sticky visuaalinen taso]  ← tausta, henkilökuva
-//     [scrollattava sisältö]     ← teksti-kortit, z-10 päälle
-//
-//   Ulompi grid saa korkeudekseen isomman lapsen (= sisältökolumni, n × 100vh).
-//   Sticky-elementti pysyy näkyvissä koko sen ajan — näin yksi tausta riittää.
-//
-// Taustanvaihto:
-//   Jokainen gradient-kerros on absoluuttisesti sijoitettu visuaalitason päälle.
-//   Aktiivinen osio saa opacity: 1, muut opacity: 0.
-//   Tailwind transition-opacity duration-700 hoitaa sulan liukuman.
-//
-// Aktiivinen osio:
-//   IntersectionObserver kuuntelee sisältöosioita (sectionRefs).
-//   Kun osio on 50 % näkyvissä, se asetetaan aktiiviseksi (activeIndex).
+// Animaatiologiikka:
+//   Jokainen kortti on absolute-sijainneilla kiinni sille osoitetussa paikassa.
+//   Ei slidea mihinkään. Kun osio aktivoituu (IntersectionObserver), kortti
+//   saa opacity: 1 ja scale: 1. Inaktiivisella opacity: 0 ja scale: 0.97.
+//   transition-all duration-300 ease-out hoitaa sulavan poppin.
 
 export default function ScrollytellingPage() {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -236,18 +246,15 @@ export default function ScrollytellingPage() {
   }, []);
 
   return (
-    // CSS grid: molemmat lapset asetetaan samaan soluun (gridArea '1 / 1')
-    // → ne limittyvät, ulompi grid kasvaa sisältölapsen mukaan
     <div className="grid">
 
       {/* ── Sticky visuaalinen taso ─────────────────────────────────────── */}
-      {/* Pysyy näkyvissä koko sivun scrollauksen ajan                       */}
       <div
         style={{ gridArea: "1 / 1" }}
         className="sticky top-0 h-screen overflow-hidden"
         aria-hidden="true"
       >
-        {/* Taustakerrokset — yksi per osio, cross-fade oppacityllä */}
+        {/* Taustakerrokset: cross-fade osiosta toiseen */}
         {SECTIONS.map((section, i) => (
           <div
             key={section.id}
@@ -256,12 +263,12 @@ export default function ScrollytellingPage() {
           />
         ))}
 
-        {/* Henkilökuva — keskitettynä taustaan */}
+        {/* Henkilökuva — aina keskellä taustaa */}
         <div className="absolute inset-0 flex items-center justify-center">
           <PortraitPlaceholder />
         </div>
 
-        {/* Osion edistymispisteet oikeassa reunassa */}
+        {/* Edistymispisteet */}
         <div className="absolute right-5 top-1/2 -translate-y-1/2 flex flex-col gap-2.5 z-10">
           {SECTIONS.map((section, i) => (
             <div
@@ -278,38 +285,49 @@ export default function ScrollytellingPage() {
       </div>
 
       {/* ── Scrollattava sisältö ────────────────────────────────────────── */}
-      {/* z-10: renderöityy sticky-tason päälle, tausta läpinäkyvä         */}
       <div style={{ gridArea: "1 / 1" }} className="relative z-10">
-        {SECTIONS.map((section, i) => (
-          <div
-            key={section.id}
-            id={section.id}
-            ref={(el) => { sectionRefs.current[i] = el; }}
-            className="min-h-screen flex items-center px-6 py-20 lg:px-14"
-          >
-            {/* Tekstikortti vaihtelee vasemmalle / oikealle */}
+        {SECTIONS.map((section, i) => {
+          const isActive = i === activeIndex;
+
+          return (
             <div
-              className={`w-full flex ${
-                section.side === "left" ? "justify-start" : "justify-end"
-              }`}
+              key={section.id}
+              id={section.id}
+              ref={(el) => { sectionRefs.current[i] = el; }}
+              // Osio vie min-h-screen tilaa scrollauksesta ja on relative,
+              // jotta absolute-kortit asettuvat suhteessa siihen
+              className="relative min-h-screen"
             >
-              <div className="bg-gray-950/85 backdrop-blur-md border border-gray-700/60 rounded-2xl p-6 lg:p-8 w-full max-w-xs lg:max-w-sm shadow-2xl shadow-black/50">
-                {/* Osion pieni tunniste */}
-                <p className="text-indigo-400 text-xs font-semibold uppercase tracking-[0.2em] mb-3">
-                  {section.label}
-                </p>
-
-                {/* Pääotsikko */}
-                <h2 className="text-white text-xl lg:text-2xl font-bold leading-tight mb-4">
-                  {section.title}
-                </h2>
-
-                {/* Osiokohtainen sisältö */}
-                <SectionContent id={section.id} />
+              {/*
+                Kortti on absolute-sijainneilla tarkasti paikallaan.
+                Pop-animaatio: opacity 0→1, scale 0.97→1.
+                Ei translateX/Y muutoksia — kortti ei liu'u mistään.
+                pointer-events-none estää inaktiivisten korttien klikkaukset.
+              */}
+              <div
+                className={`
+                  absolute ${CARD_POSITION[section.position]}
+                  w-full max-w-xs lg:max-w-sm
+                  transition-all duration-300 ease-out
+                  ${isActive
+                    ? "opacity-100 scale-100 pointer-events-auto"
+                    : "opacity-0 scale-[0.97] pointer-events-none"
+                  }
+                `}
+              >
+                <div className="bg-gray-950/85 backdrop-blur-md border border-gray-700/60 rounded-2xl p-6 lg:p-8 shadow-2xl shadow-black/50">
+                  <p className="text-indigo-400 text-xs font-semibold uppercase tracking-[0.2em] mb-3">
+                    {section.label}
+                  </p>
+                  <h2 className="text-white text-xl lg:text-2xl font-bold leading-tight mb-4">
+                    {section.title}
+                  </h2>
+                  <SectionContent id={section.id} />
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
     </div>
