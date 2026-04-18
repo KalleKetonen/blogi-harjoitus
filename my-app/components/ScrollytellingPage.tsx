@@ -3,31 +3,22 @@
 import { useState, useEffect, useRef } from "react";
 import PortraitPlaceholder from "./PortraitPlaceholder";
 
-// ─── Sijoittelutyyppi ────────────────────────────────────────────────────────
+// ─── Kortin sijoittelu stagessa ───────────────────────────────────────────────
 //
-// Kortilla on 6 mahdollista paikkaa näytöllä.
-// Muokkaa SECTIONS-arrayta vaihtaaksesi minkä tahansa osion paikkaa.
+// Kaikki positiot ovat sticky stagen sisäisiä absolute-sijainteja.
+// Kortit eivät koskaan ole osa scrollaavaa dokumenttivirtaa.
 
-type CardPosition =
-  | "top-left"
-  | "top-right"
-  | "center-left"
-  | "center-right"
-  | "bottom-left"
-  | "bottom-right";
+type CardPosition = "left" | "right" | "top" | "top-left" | "top-right";
 
-// Jokainen paikka muuntuu absolute-sijainniksi section-divissä.
-// Kortti on aina fyysisesti tässä kohdassa — ei liu'u reunoilta.
 const CARD_POSITION: Record<CardPosition, string> = {
-  "top-left":     "top-24 left-6 lg:left-14",
-  "top-right":    "top-24 right-6 lg:right-14",
-  "center-left":  "top-1/2 -translate-y-1/2 left-6 lg:left-14",
-  "center-right": "top-1/2 -translate-y-1/2 right-6 lg:right-14",
-  "bottom-left":  "bottom-24 left-6 lg:left-14",
-  "bottom-right": "bottom-24 right-6 lg:right-14",
+  "left":      "top-1/2 -translate-y-1/2 left-6 lg:left-14",
+  "right":     "top-1/2 -translate-y-1/2 right-6 lg:right-14",
+  "top":       "top-16 left-1/2 -translate-x-1/2",
+  "top-left":  "top-16 left-6 lg:left-14",
+  "top-right": "top-16 right-6 lg:right-14",
 };
 
-// ─── Osiodata ────────────────────────────────────────────────────────────────
+// ─── Osiodata ─────────────────────────────────────────────────────────────────
 
 type Section = {
   id: string;
@@ -37,42 +28,40 @@ type Section = {
   gradient: string;
 };
 
-// Sijoittelu on valittu niin, että kortit liikkuvat näytöllä eri kohtiin —
-// ei pelkkää vasemmalta-oikealta vaihtoa, vaan lavastettu kokonaisuus.
 const SECTIONS: Section[] = [
   {
     id: "intro",
     label: "01 / Esittely",
     title: "Etunimi Sukunimi",
-    position: "center-left",      // Intro: keskellä vasemmalla — pääroolissa
+    position: "left",
     gradient: "from-indigo-950 via-gray-900 to-gray-950",
   },
   {
     id: "contact",
     label: "02 / Yhteystiedot",
     title: "Ota yhteyttä",
-    position: "top-right",        // Yhteystiedot: yläoikealla — kevyt ja siisti
+    position: "top-right",
     gradient: "from-slate-950 via-gray-900 to-indigo-950",
   },
   {
     id: "education",
     label: "03 / Koulutus & Työ",
     title: "Tausta",
-    position: "bottom-left",      // Tausta: alavasemmalla — ankkuroitu
+    position: "right",
     gradient: "from-gray-950 via-indigo-950 to-gray-900",
   },
   {
     id: "skills",
     label: "04 / Osaaminen",
     title: "Mitä osaan",
-    position: "top-left",         // Osaaminen: ylävasemmalla — tiivis ja tekninen
+    position: "top-left",
     gradient: "from-violet-950 via-gray-950 to-gray-900",
   },
   {
     id: "projects",
     label: "05 / Projektit",
     title: "Rakennettua",
-    position: "center-right",     // Projektit: keskellä oikealla — loppuhuipennus
+    position: "top",
     gradient: "from-gray-950 via-slate-950 to-indigo-950",
   },
 ];
@@ -214,24 +203,133 @@ function SectionContent({ id }: { id: string }) {
   }
 }
 
+// ─── StickyStage ──────────────────────────────────────────────────────────────
+//
+// Pysyy paikallaan koko sivun ajan. Sisältää:
+//   - taustagradientin (cross-fade osiosta toiseen)
+//   - henkilökuvan (aina keskellä)
+//   - kaikki tekstikortit absolute-positioituna (vain aktiivinen näkyvissä)
+//   - edistymispisteet
+//
+// Kortit ovat tässä komponentissa — eivät koskaan scrollaavassa virrassa.
+
+function StickyStage({ activeIndex }: { activeIndex: number }) {
+  return (
+    <div
+      style={{ gridArea: "1 / 1" }}
+      className="sticky top-0 h-screen overflow-hidden"
+    >
+      {/* Taustakerrokset: cross-fade osiosta toiseen */}
+      {SECTIONS.map((section, i) => (
+        <div
+          key={section.id}
+          className={`absolute inset-0 bg-gradient-to-br ${section.gradient} transition-opacity duration-700`}
+          style={{ opacity: i === activeIndex ? 1 : 0 }}
+        />
+      ))}
+
+      {/* Henkilökuva — aina keskellä */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <PortraitPlaceholder />
+      </div>
+
+      {/* Tekstikortit — kaikki stagessa, vain aktiivinen näkyvissä.
+          Animaatio: opacity fade + pieni scale. Ei translate-liikettä. */}
+      {SECTIONS.map((section, i) => {
+        const isActive = i === activeIndex;
+        return (
+          <div
+            key={section.id}
+            className={`
+              absolute ${CARD_POSITION[section.position]}
+              w-full max-w-xs lg:max-w-sm
+              transition-opacity transition-transform duration-300 ease-out
+              ${isActive
+                ? "opacity-100 scale-100 pointer-events-auto"
+                : "opacity-0 scale-[0.98] pointer-events-none"
+              }
+            `}
+          >
+            <div className="bg-gray-950/85 backdrop-blur-md border border-gray-700/60 rounded-2xl p-6 lg:p-8 shadow-2xl shadow-black/50">
+              <p className="text-indigo-400 text-xs font-semibold uppercase tracking-[0.2em] mb-3">
+                {section.label}
+              </p>
+              <h2 className="text-white text-xl lg:text-2xl font-bold leading-tight mb-4">
+                {section.title}
+              </h2>
+              <SectionContent id={section.id} />
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Edistymispisteet */}
+      <div className="absolute right-5 top-1/2 -translate-y-1/2 flex flex-col gap-2.5 z-10">
+        {SECTIONS.map((section, i) => (
+          <div
+            key={section.id}
+            title={section.label}
+            className={`rounded-full transition-all duration-300 ${
+              i === activeIndex
+                ? "w-2 h-2 bg-white"
+                : "w-1.5 h-1.5 bg-gray-600"
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── ScrollTriggers ───────────────────────────────────────────────────────────
+//
+// Näkymätön scrollattava alue. Ainoa tehtävä: tehdä sivu riittävän pitkäksi
+// scrollausta varten ja kertoa IntersectionObserverille mikä step on aktiivinen.
+// Ei sisällä mitään visuaalista.
+
+function ScrollTriggers({
+  triggerRefs,
+}: {
+  triggerRefs: React.MutableRefObject<(HTMLDivElement | null)[]>;
+}) {
+  return (
+    <div
+      style={{ gridArea: "1 / 1" }}
+      className="relative pointer-events-none"
+      aria-hidden="true"
+    >
+      {SECTIONS.map((section, i) => (
+        <div
+          key={section.id}
+          id={section.id}
+          ref={(el) => { triggerRefs.current[i] = el; }}
+          className="min-h-screen"
+        />
+      ))}
+    </div>
+  );
+}
+
 // ─── Pääkomponentti ───────────────────────────────────────────────────────────
 //
-// Animaatiologiikka:
-//   Jokainen kortti on absolute-sijainneilla kiinni sille osoitetussa paikassa.
-//   Ei slidea mihinkään. Kun osio aktivoituu (IntersectionObserver), kortti
-//   saa opacity: 1 ja scale: 1. Inaktiivisella opacity: 0 ja scale: 0.97.
-//   transition-all duration-300 ease-out hoitaa sulavan poppin.
+// CSS Grid -kikka: StickyStage ja ScrollTriggers jakavat saman grid-alueen
+// (gridArea "1 / 1"). Gridin korkeus määräytyy isomman lapsen mukaan
+// (= ScrollTriggers, n × 100vh). StickyStage pysyy näkyvissä koko ajan.
+//
+// Rakenne:
+//   ScrollTriggers  — scrollattava, näkymätön, määrittää aktiivisen stepin
+//   StickyStage     — pysyy paikallaan, näyttää taustan + kuvan + kortin
 
 export default function ScrollytellingPage() {
   const [activeIndex, setActiveIndex] = useState(0);
-  const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const triggerRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            const idx = sectionRefs.current.findIndex(
+            const idx = triggerRefs.current.findIndex(
               (el) => el === entry.target
             );
             if (idx !== -1) setActiveIndex(idx);
@@ -241,95 +339,14 @@ export default function ScrollytellingPage() {
       { threshold: 0.5 }
     );
 
-    sectionRefs.current.forEach((el) => el && observer.observe(el));
+    triggerRefs.current.forEach((el) => el && observer.observe(el));
     return () => observer.disconnect();
   }, []);
 
   return (
     <div className="grid">
-
-      {/* ── Sticky visuaalinen taso ─────────────────────────────────────── */}
-      <div
-        style={{ gridArea: "1 / 1" }}
-        className="sticky top-0 h-screen overflow-hidden"
-        aria-hidden="true"
-      >
-        {/* Taustakerrokset: cross-fade osiosta toiseen */}
-        {SECTIONS.map((section, i) => (
-          <div
-            key={section.id}
-            className={`absolute inset-0 bg-gradient-to-br ${section.gradient} transition-opacity duration-700`}
-            style={{ opacity: i === activeIndex ? 1 : 0 }}
-          />
-        ))}
-
-        {/* Henkilökuva — aina keskellä taustaa */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <PortraitPlaceholder />
-        </div>
-
-        {/* Edistymispisteet */}
-        <div className="absolute right-5 top-1/2 -translate-y-1/2 flex flex-col gap-2.5 z-10">
-          {SECTIONS.map((section, i) => (
-            <div
-              key={section.id}
-              title={section.label}
-              className={`rounded-full transition-all duration-300 ${
-                i === activeIndex
-                  ? "w-2 h-2 bg-white"
-                  : "w-1.5 h-1.5 bg-gray-600"
-              }`}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* ── Scrollattava sisältö ────────────────────────────────────────── */}
-      <div style={{ gridArea: "1 / 1" }} className="relative z-10">
-        {SECTIONS.map((section, i) => {
-          const isActive = i === activeIndex;
-
-          return (
-            <div
-              key={section.id}
-              id={section.id}
-              ref={(el) => { sectionRefs.current[i] = el; }}
-              // Osio vie min-h-screen tilaa scrollauksesta ja on relative,
-              // jotta absolute-kortit asettuvat suhteessa siihen
-              className="relative min-h-screen"
-            >
-              {/*
-                Kortti on absolute-sijainneilla tarkasti paikallaan.
-                Pop-animaatio: opacity 0→1, scale 0.97→1.
-                Ei translateX/Y muutoksia — kortti ei liu'u mistään.
-                pointer-events-none estää inaktiivisten korttien klikkaukset.
-              */}
-              <div
-                className={`
-                  absolute ${CARD_POSITION[section.position]}
-                  w-full max-w-xs lg:max-w-sm
-                  transition-all duration-300 ease-out
-                  ${isActive
-                    ? "opacity-100 scale-100 pointer-events-auto"
-                    : "opacity-0 scale-[0.97] pointer-events-none"
-                  }
-                `}
-              >
-                <div className="bg-gray-950/85 backdrop-blur-md border border-gray-700/60 rounded-2xl p-6 lg:p-8 shadow-2xl shadow-black/50">
-                  <p className="text-indigo-400 text-xs font-semibold uppercase tracking-[0.2em] mb-3">
-                    {section.label}
-                  </p>
-                  <h2 className="text-white text-xl lg:text-2xl font-bold leading-tight mb-4">
-                    {section.title}
-                  </h2>
-                  <SectionContent id={section.id} />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
+      <StickyStage activeIndex={activeIndex} />
+      <ScrollTriggers triggerRefs={triggerRefs} />
     </div>
   );
 }
