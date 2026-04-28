@@ -11,6 +11,24 @@ type NPC = {
   currentHp: number;
 };
 
+// ─── Nimen kopiointi-apufunktiot ──────────────────────────────────────────────
+
+// Palauttaa nimen ilman mahdollista loppunumeroa.
+// "Goblin 2" → "Goblin", "Orc" → "Orc", "Super Goblin 3" → "Super Goblin"
+function getBaseName(name: string): string {
+  return name.replace(/ \d+$/, "").trim();
+}
+
+// Palauttaa seuraavan vapaan kopionimen annetulle pohjanimelle.
+// Laskee kuinka monta NPC:tä jo jakaa saman pohjanimen, ja käyttää
+// sitä lukua suffiksina: "Goblin" → "Goblin 1" → "Goblin 2" jne.
+function getNextCopyName(baseName: string, npcs: NPC[]): string {
+  const existingCount = npcs.filter(
+    (npc) => getBaseName(npc.name) === baseName
+  ).length;
+  return `${baseName} ${existingCount}`;
+}
+
 // ─── NPCForm ──────────────────────────────────────────────────────────────────
 
 type NPCFormProps = {
@@ -65,6 +83,7 @@ function NPCForm({ onAdd }: NPCFormProps) {
 type NPCCardProps = {
   npc: NPC;
   onDamage: (id: number, amount: number) => void;
+  onCopy: (id: number) => void;
   onRemove: (id: number) => void;
 };
 
@@ -75,7 +94,7 @@ function hpBarColor(current: number, max: number): string {
   return "bg-red-500";
 }
 
-function NPCCard({ npc, onDamage, onRemove }: NPCCardProps) {
+function NPCCard({ npc, onDamage, onCopy, onRemove }: NPCCardProps) {
   const [damage, setDamage] = useState("");
   const isDead = npc.currentHp <= 0;
   const hpPercent = Math.max(0, (npc.currentHp / npc.maxHp) * 100);
@@ -148,13 +167,21 @@ function NPCCard({ npc, onDamage, onRemove }: NPCCardProps) {
         </button>
       </div>
 
-      {/* Poista */}
-      <button
-        onClick={() => onRemove(npc.id)}
-        className="text-gray-600 hover:text-red-400 text-xs transition-colors text-left"
-      >
-        Poista NPC
-      </button>
+      {/* Kopioi ja Poista */}
+      <div className="flex gap-4">
+        <button
+          onClick={() => onCopy(npc.id)}
+          className="text-gray-500 hover:text-indigo-400 text-xs transition-colors"
+        >
+          Kopioi
+        </button>
+        <button
+          onClick={() => onRemove(npc.id)}
+          className="text-gray-600 hover:text-red-400 text-xs transition-colors"
+        >
+          Poista NPC
+        </button>
+      </div>
     </div>
   );
 }
@@ -164,10 +191,11 @@ function NPCCard({ npc, onDamage, onRemove }: NPCCardProps) {
 type NPCListProps = {
   npcs: NPC[];
   onDamage: (id: number, amount: number) => void;
+  onCopy: (id: number) => void;
   onRemove: (id: number) => void;
 };
 
-function NPCList({ npcs, onDamage, onRemove }: NPCListProps) {
+function NPCList({ npcs, onDamage, onCopy, onRemove }: NPCListProps) {
   if (npcs.length === 0) {
     return (
       <p className="text-gray-600 text-sm text-center py-16">
@@ -179,7 +207,13 @@ function NPCList({ npcs, onDamage, onRemove }: NPCListProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {npcs.map((npc) => (
-        <NPCCard key={npc.id} npc={npc} onDamage={onDamage} onRemove={onRemove} />
+        <NPCCard
+          key={npc.id}
+          npc={npc}
+          onDamage={onDamage}
+          onCopy={onCopy}
+          onRemove={onRemove}
+        />
       ))}
     </div>
   );
@@ -208,6 +242,26 @@ export default function DndPage() {
     );
   }
 
+  // Kopioi NPC: sama maxHp, currentHp nollataan täyteen, nimi numeroidaan.
+  // Kopioitaessa "Goblin 2" pohjanimi on silti "Goblin" → kopio saa "Goblin 3".
+  function copyNpc(id: number) {
+    setNpcs((prev) => {
+      const original = prev.find((npc) => npc.id === id);
+      if (!original) return prev;
+      const baseName = getBaseName(original.name);
+      const newName = getNextCopyName(baseName, prev);
+      return [
+        ...prev,
+        {
+          id: nextId.current++,
+          name: newName,
+          maxHp: original.maxHp,
+          currentHp: original.maxHp,
+        },
+      ];
+    });
+  }
+
   function removeNpc(id: number) {
     setNpcs((prev) => prev.filter((npc) => npc.id !== id));
   }
@@ -225,7 +279,12 @@ export default function DndPage() {
         <NPCForm onAdd={addNpc} />
       </div>
 
-      <NPCList npcs={npcs} onDamage={dealDamage} onRemove={removeNpc} />
+      <NPCList
+        npcs={npcs}
+        onDamage={dealDamage}
+        onCopy={copyNpc}
+        onRemove={removeNpc}
+      />
     </main>
   );
 }
